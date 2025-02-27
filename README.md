@@ -37,13 +37,13 @@ cd yt-playlist-downloader
 ### **Run the script with a YouTube Playlist ID**
 
 ```sh
-python3 download-playlist.py PLAYLIST_ID
+python3 download-playlist.py PLAYLIST_ID [--reverse]
 ```
 
 Example:
 
 ```sh
-python3 download-playlist.py PL1234567890ABCDEF
+python3 download-playlist.py PL1234567890ABCDEF --reverse
 ```
 
 ### **Docker Usage**
@@ -57,7 +57,7 @@ docker build -t yt-downloader .
 Run the container:
 
 ```sh
-docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABCDEF
+docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABCDEF [--reverse]
 ```
 
 ---
@@ -65,13 +65,13 @@ docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABC
 ## 📂 Output Folder Structure (Emby-Compatible)
 
 ```
-/Download/Playlist_Name/
-    01 - Video Title.mp4
-    01 - Video Title.nfo
-    01 - Video Title.jpg
-    02 - Another Video.mp4
-    02 - Another Video.nfo
-    02 - Another Video.jpg
+/Download/Playlist_Name/Season 01/
+    S01E01 - Video Title.mp4
+    S01E01 - Video Title.nfo
+    S01E01 - Video Title.jpg
+    S01E02 - Another Video.mp4
+    S01E02 - Another Video.nfo
+    S01E02 - Another Video.jpg
     playlist_index.csv
 ```
 

@@ -7,8 +7,14 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# Run the Python script with the playlist ID
-python download-playlist.py "$1"
+# Check if the --reverse flag is provided
+REVERSE_FLAG=""
+if [ "$2" == "--reverse" ]; then
+    REVERSE_FLAG="--reverse"
+fi
+
+# Run the Python script with the playlist ID and optional reverse flag
+python download-playlist.py "$1" $REVERSE_FLAG
 
 # Exit the container automatically after completion
 exit 0

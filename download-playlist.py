@@ -11,17 +11,17 @@ def sanitize_filename(name):
     """Removes invalid characters for filenames and replaces with spaces."""
     return "".join(c if c.isalnum() or c in " ._-" else " " for c in name).strip()
 
-def create_nfo_file(file_path, title, url, description, date):
-    """Creates an Emby-compatible .nfo metadata file."""
+def create_nfo_file(file_path, title, url, description, date, season, episode):
+    """Creates an Emby-compatible .nfo metadata file for TV series."""
     nfo_content = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<movie>
+<episodedetails>
     <title>{title}</title>
-    <originaltitle>{title}</originaltitle>
+    <season>{season}</season>
+    <episode>{episode}</episode>
     <plot>{description}</plot>
-    <premiered>{date}</premiered>
-    <year>{date.split('-')[0]}</year>
+    <aired>{date}</aired>
     <uniqueid type="youtube">{url}</uniqueid>
-</movie>
+</episodedetails>
 """
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(nfo_content)
@@ -34,15 +34,15 @@ def download_thumbnail(url, output_path):
             with open(output_path, "wb") as f:
                 for chunk in response.iter_content(1024):
                     f.write(chunk)
-            print(f"Thumbnail saved: {output_path}")
+            logging.info(f"Thumbnail saved: {output_path}")
         else:
-            print(f"Failed to download thumbnail: {url}")
+            logging.error(f"Failed to download thumbnail: {url}")
     except Exception as e:
-        print(f"Error downloading thumbnail: {e}")
+        logging.error(f"Error downloading thumbnail: {e}")
 
-def download_video(video_url, index, output_directory, video_title):
+def download_video(video_url, index, output_directory, video_title, season, episode):
     """Downloads a video using yt-dlp and skips if it already exists."""
-    safe_file_name = f"{index:02d} - {sanitize_filename(video_title)}.mp4"
+    safe_file_name = f"S{season:02d}E{episode:02d} - {sanitize_filename(video_title)}.mp4"
     file_path = os.path.join(output_directory, safe_file_name)
 
     # Skip download if the file already exists
@@ -50,10 +50,10 @@ def download_video(video_url, index, output_directory, video_title):
         logging.info(f"Skipping {video_title} (already downloaded)")
         return safe_file_name
 
-    # yt-dlp command to download the highest quality video and audio
+    # yt-dlp command to download a more filesize-friendly format with 1080p limit
     command = [
         "yt-dlp",
-        "-f", "bestvideo+bestaudio/best",  # Highest quality video and audio
+        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",  # Limit to 1080p for smaller size
         "--merge-output-format", "mp4",    # Merge into a single MP4 file
         "-o", file_path,                   # Save with formatted filename
         video_url
@@ -75,33 +75,37 @@ def download_video(video_url, index, output_directory, video_title):
     logging.error(f"Failed to download after multiple attempts: {video_title}")
     return None  # Failure
 
-def download_playlist(playlist_id):
+def download_playlist(playlist_id, reverse_order=False):
     """Downloads an entire YouTube playlist using yt-dlp with metadata for Emby."""
     playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
     
     # Fetch playlist metadata
-    print("Fetching playlist details...")
+    logging.info("Fetching playlist details...")
     result = subprocess.run(["yt-dlp", "--flat-playlist", "-J", playlist_url], capture_output=True, text=True)
 
     if result.returncode != 0:
-        print("Error fetching playlist info. Make sure the playlist ID is correct.")
+        logging.error("Error fetching playlist info. Make sure the playlist ID is correct.")
         sys.exit(1)
 
     import json
     playlist_data = json.loads(result.stdout)
     playlist_title = sanitize_filename(playlist_data["title"])
-    output_directory = os.path.join(os.getcwd(), "Download", playlist_title)
+    output_directory = os.path.join(os.getcwd(), "Download", playlist_title, "Season 01")
     os.makedirs(output_directory, exist_ok=True)
 
-    video_data = []
-    print(f"Downloading {len(playlist_data['entries'])} videos from playlist: {playlist_title}")
+    video_entries = playlist_data["entries"]
+    if reverse_order:
+        video_entries.reverse()
 
-    for index, entry in enumerate(playlist_data["entries"], start=1):
+    video_data = []
+    logging.info(f"Downloading {len(video_entries)} videos from playlist: {playlist_title}")
+
+    for index, entry in enumerate(video_entries, start=1):
         video_url = entry["url"]
         video_title = entry["title"]
 
         # Download video (if not already downloaded)
-        safe_file_name = download_video(video_url, index, output_directory, video_title)
+        safe_file_name = download_video(video_url, index, output_directory, video_title, 1, index)
         if safe_file_name is None:
             continue  # Skip failed downloads
 
@@ -114,7 +118,7 @@ def download_playlist(playlist_id):
 
         # Save NFO metadata
         nfo_file = os.path.join(output_directory, f"{os.path.splitext(safe_file_name)[0]}.nfo")
-        create_nfo_file(nfo_file, video_title, video_url, description, publish_date)
+        create_nfo_file(nfo_file, video_title, video_url, description, publish_date, 1, index)
 
         # Download thumbnail
         thumbnail_url = video_info.get("thumbnail")
@@ -126,7 +130,7 @@ def download_playlist(playlist_id):
         video_data.append([safe_file_name, video_title])
 
         # **Prevent rate limiting by waiting 30 seconds**
-        print("Waiting 30 seconds before the next download...")
+        logging.info("Waiting 30 seconds before the next download...")
         time.sleep(30)
 
     # Save index to CSV
@@ -134,12 +138,13 @@ def download_playlist(playlist_id):
     df = pd.DataFrame(video_data, columns=["File Name", "Video Title"])
     df.to_csv(csv_path, index=False)
 
-    print(f"\nDownload complete! Videos saved in '{output_directory}'. Playlist index saved to '{csv_path}'.")
+    logging.info(f"\nDownload complete! Videos saved in '{output_directory}'. Playlist index saved to '{csv_path}'.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python youtube_playlist_downloader.py <YouTube Playlist ID>")
+        print("Usage: python youtube_playlist_downloader.py <YouTube Playlist ID> [--reverse]")
         sys.exit(1)
 
     playlist_id = sys.argv[1]
-    download_playlist(playlist_id)
+    reverse_order = '--reverse' in sys.argv
+    download_playlist(playlist_id, reverse_order)
