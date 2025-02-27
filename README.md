@@ -1,10 +1,10 @@
 # 🎥 YouTube Playlist Downloader (Emby-Ready)
 
-This script downloads YouTube playlists **as pre-merged MP4 files**, ensuring **low resource usage** on a VPS. It also generates **Emby-compatible metadata** (`.nfo` & thumbnails) for seamless integration.
+This script downloads YouTube playlists. It also generates **Emby-compatible metadata** (`.nfo` & thumbnails) for seamless integration.
 
 ## 🚀 Features
 
-✅ **Downloads videos in MP4 format** (no merging needed)\
+✅ **Downloads videos in the highest quality available** (merges video and audio streams)\
 ✅ **Skips already downloaded files** (supports resuming)\
 ✅ **Generates Emby-compatible **`** and **`** files**\
 ✅ **Includes a 30-second delay to prevent rate limiting**\
@@ -75,7 +75,7 @@ docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABC
     playlist_index.csv
 ```
 
-- **MP4** → Video file
+- **MP4** → Video file (merged video and audio)
 - **NFO** → Metadata for Emby
 - **JPG** → Thumbnail for Emby
 - **CSV** → Playlist index
@@ -142,6 +142,7 @@ sudo rm -rf /var/lib/apt/lists/*  # Clear package cache
 - **Perfect for Emby users** (auto-generates metadata)
 - **VPS-friendly** (low resource usage)
 - **Supports resumable downloads** (won't re-download existing files)
+- **Downloads highest quality video and audio** (merges streams)
 
 🚀 **Enjoy downloading your YouTube playlists effortlessly!**
 

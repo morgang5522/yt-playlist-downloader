@@ -5,6 +5,7 @@ import random
 import requests
 import subprocess
 import pandas as pd
+import logging
 
 def sanitize_filename(name):
     """Removes invalid characters for filenames and replaces with spaces."""
@@ -46,18 +47,19 @@ def download_video(video_url, index, output_directory, video_title):
 
     # Skip download if the file already exists
     if os.path.exists(file_path):
-        print(f"Skipping {video_title} (already downloaded)")
+        logging.info(f"Skipping {video_title} (already downloaded)")
         return safe_file_name
 
-    # yt-dlp command to download the best pre-merged MP4 format
+    # yt-dlp command to download the highest quality video and audio
     command = [
         "yt-dlp",
-        "-f", "best[ext=mp4]",  # Pre-merged file only
-        "-o", file_path,        # Save with formatted filename
+        "-f", "bestvideo+bestaudio/best",  # Highest quality video and audio
+        "--merge-output-format", "mp4",    # Merge into a single MP4 file
+        "-o", file_path,                   # Save with formatted filename
         video_url
     ]
 
-    print(f"Downloading: {video_title} ({video_url})")
+    logging.info(f"Downloading: {video_title} ({video_url})")
 
     # Try up to 3 times with increasing delay on failure
     for attempt in range(3):
@@ -66,11 +68,11 @@ def download_video(video_url, index, output_directory, video_title):
             return safe_file_name  # Success
         except subprocess.CalledProcessError as e:
             wait_time = (attempt + 1) * 30  # Exponential backoff (30s, 60s, 90s)
-            print(f"Error downloading {video_title}: {e}")
-            print(f"Retrying in {wait_time} seconds... (Attempt {attempt + 1}/3)")
+            logging.error(f"Error downloading {video_title}: {e}")
+            logging.info(f"Retrying in {wait_time} seconds... (Attempt {attempt + 1}/3)")
             time.sleep(wait_time)
 
-    print(f"Failed to download after multiple attempts: {video_title}")
+    logging.error(f"Failed to download after multiple attempts: {video_title}")
     return None  # Failure
 
 def download_playlist(playlist_id):
