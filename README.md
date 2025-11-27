@@ -20,6 +20,9 @@ First, install `yt-dlp`, `ffmpeg`, and Python packages:
 
 ```sh
 sudo apt update && sudo apt install ffmpeg -y
+# (Recommended) Use a Virtual Environment
+python3 -m venv .venv
+source .venv/bin/activate
 pip3 install --upgrade yt-dlp pandas requests
 ```
 
@@ -37,16 +40,25 @@ cd yt-playlist-downloader
 ### **Run the script with a YouTube Playlist ID**
 
 ```sh
-python3 download-playlist.py PLAYLIST_ID [--reverse]
+python3 download-playlist.py PLAYLIST_ID [--reverse] [--season-name "Season 02"]
 ```
+
+- `--reverse` downloads episodes in reverse order.
+- `--season-name` controls both the folder label and the filename prefix. It defaults to `Season 01`, but you can pass text (e.g. `Miami`) or a number (e.g. `Season 2`). If the name contains a number, the script automatically uses it for the Emby metadata season number; otherwise it falls back to `1`.
 
 Example:
 
 ```sh
-python3 download-playlist.py PL1234567890ABCDEF --reverse
+python3 download-playlist.py PL1234567890ABCDEF --season-name "Season 02"
 ```
 
-### **Docker Usage**
+Using the helper script:
+
+```sh
+./download.sh PL1234567890ABCDEF --season-name "Live Shows" --reverse
+```
+
+### **Docker Usage (Manual)**
 
 Build the Docker image:
 
@@ -57,7 +69,7 @@ docker build -t yt-downloader .
 Run the container:
 
 ```sh
-docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABCDEF [--reverse]
+docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABCDEF [--reverse] [--season-name "Season 02"]
 ```
 
 ---
@@ -66,12 +78,12 @@ docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABC
 
 ```
 /Download/Playlist_Name/Season 01/
-    S01E01 - Video Title.mp4
-    S01E01 - Video Title.nfo
-    S01E01 - Video Title.jpg
-    S01E02 - Another Video.mp4
-    S01E02 - Another Video.nfo
-    S01E02 - Another Video.jpg
+    Season 01 - E01 - Video Title.mp4
+    Season 01 - E01 - Video Title.nfo
+    Season 01 - E01 - Video Title.jpg
+    Season 01 - E02 - Another Video.mp4
+    Season 01 - E02 - Another Video.nfo
+    Season 01 - E02 - Another Video.jpg
     playlist_index.csv
 ```
 
@@ -79,6 +91,8 @@ docker run --rm -v "$(pwd)/Download:/app/Download" yt-downloader PL1234567890ABC
 - **NFO** → Metadata for Emby
 - **JPG** → Thumbnail for Emby
 - **CSV** → Playlist index
+
+> Tip: pass a different `--season-name` to organize multiple playlists from the same creator into separate seasons. If the season name is numeric (like `Season 3`), the script automatically uses that number for the Emby metadata season value.
 
 ---
 
@@ -148,7 +162,7 @@ sudo rm -rf /var/lib/apt/lists/*  # Clear package cache
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See the [LICENSE](LICENSE) file for details.
 
 ## 🤖 AI-Generated Code
 

@@ -1,21 +1,69 @@
 #!/bin/bash
 
-# Check if a playlist ID is provided
-if [ -z "$1" ]; then
-  echo "Usage: ./download.sh <YouTube Playlist ID>"
+# Usage message
+usage() {
+  echo "Usage: ./download.sh <YouTube Playlist ID> [--reverse] [--season-name \"Name or Number\"] [--docker]"
   exit 1
+}
+
+# Check for minimum arguments
+if [ -z "$1" ]; then
+  usage
 fi
 
-# Set the playlist ID from the first argument
-PLAYLIST_ID=$1
-
-# Check if the --reverse flag is provided
+# Parse arguments
+PLAYLIST_ID=""
 REVERSE_FLAG=""
-if [ "$2" == "--reverse" ]; then
-  REVERSE_FLAG="--reverse"
+SEASON_NAME=""
+DOCKER_FLAG=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reverse)
+      REVERSE_FLAG="--reverse"
+      shift
+      ;;
+    --docker)
+      DOCKER_FLAG=1
+      shift
+      ;;
+    --season-name)
+      if [[ -z "$2" ]]; then
+        echo "--season-name requires a value."
+        usage
+      fi
+      SEASON_NAME="$2"
+      shift 2
+      ;;
+    *)
+      if [[ -z "$PLAYLIST_ID" ]]; then
+        PLAYLIST_ID="$1"
+        shift
+      else
+        usage
+      fi
+      ;;
+  esac
+done
+
+if [ -z "$PLAYLIST_ID" ]; then
+  usage
 fi
 
-# Run the Docker container in detached mode with the specified playlist ID and optional reverse flag
-docker run --rm -d \
-  -v "$(pwd)/Download:/app/Download" \
-  yt-downloader "$PLAYLIST_ID" $REVERSE_FLAG
+EXTRA_ARGS=()
+if [[ -n "$REVERSE_FLAG" ]]; then
+  EXTRA_ARGS+=("$REVERSE_FLAG")
+fi
+if [[ -n "$SEASON_NAME" ]]; then
+  EXTRA_ARGS+=("--season-name" "$SEASON_NAME")
+fi
+
+if [ $DOCKER_FLAG -eq 1 ]; then
+  # Run in Docker (detached mode)
+  docker run --rm -d \
+    -v "$(pwd)/Download:/app/Download" \
+    yt-downloader "$PLAYLIST_ID" "${EXTRA_ARGS[@]}"
+else
+  # Run locally
+  python3 download-playlist.py "$PLAYLIST_ID" "${EXTRA_ARGS[@]}"
+fi

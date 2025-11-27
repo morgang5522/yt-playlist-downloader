@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import random
+import argparse
 import requests
 import subprocess
 import pandas as pd
@@ -10,6 +10,32 @@ import logging
 def sanitize_filename(name):
     """Removes invalid characters for filenames and replaces with spaces."""
     return "".join(c if c.isalnum() or c in " ._-" else " " for c in name).strip()
+
+def infer_season_number_from_name(season_name):
+    """
+    Attempts to detect a numeric season identifier from a friendly season name.
+    Examples:
+        "2" -> 2
+        "Season 3" -> 3
+        "S04" -> 4
+    """
+    if not season_name:
+        return None
+    cleaned = season_name.strip()
+    if not cleaned:
+        return None
+    if cleaned.isdigit():
+        return int(cleaned)
+    lowered = cleaned.lower()
+    if lowered.startswith("season"):
+        suffix = cleaned[len("season"):].strip()
+        if suffix.isdigit():
+            return int(suffix)
+    if lowered.startswith("s"):
+        suffix = cleaned[1:].strip()
+        if suffix.isdigit():
+            return int(suffix)
+    return None
 
 def create_nfo_file(file_path, title, url, description, date, season, episode):
     """Creates an Emby-compatible .nfo metadata file for TV series."""
@@ -40,9 +66,9 @@ def download_thumbnail(url, output_path):
     except Exception as e:
         logging.error(f"Error downloading thumbnail: {e}")
 
-def download_video(video_url, index, output_directory, video_title, season, episode):
+def download_video(video_url, output_directory, video_title, season_label, episode):
     """Downloads a video using yt-dlp and skips if it already exists."""
-    safe_file_name = f"S{season:02d}E{episode:02d} - {sanitize_filename(video_title)}.mp4"
+    safe_file_name = f"{season_label} - E{episode:02d} - {sanitize_filename(video_title)}.mp4"
     file_path = os.path.join(output_directory, safe_file_name)
 
     # Skip download if the file already exists
@@ -75,7 +101,7 @@ def download_video(video_url, index, output_directory, video_title, season, epis
     logging.error(f"Failed to download after multiple attempts: {video_title}")
     return None  # Failure
 
-def download_playlist(playlist_id, reverse_order=False):
+def download_playlist(playlist_id, reverse_order=False, season_name="Season 01", season_number=1):
     """Downloads an entire YouTube playlist using yt-dlp with metadata for Emby."""
     playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
     
@@ -90,7 +116,10 @@ def download_playlist(playlist_id, reverse_order=False):
     import json
     playlist_data = json.loads(result.stdout)
     playlist_title = sanitize_filename(playlist_data["title"])
-    output_directory = os.path.join(os.getcwd(), "Download", playlist_title, "Season 01")
+
+    desired_season_name = season_name.strip() if season_name else "Season 01"
+    sanitized_season_name = sanitize_filename(desired_season_name) or "Season 01"
+    output_directory = os.path.join(os.getcwd(), "Download", playlist_title, sanitized_season_name)
     os.makedirs(output_directory, exist_ok=True)
 
     video_entries = playlist_data["entries"]
@@ -105,7 +134,7 @@ def download_playlist(playlist_id, reverse_order=False):
         video_title = entry["title"]
 
         # Download video (if not already downloaded)
-        safe_file_name = download_video(video_url, index, output_directory, video_title, 1, index)
+        safe_file_name = download_video(video_url, output_directory, video_title, sanitized_season_name, index)
         if safe_file_name is None:
             continue  # Skip failed downloads
 
@@ -118,7 +147,7 @@ def download_playlist(playlist_id, reverse_order=False):
 
         # Save NFO metadata
         nfo_file = os.path.join(output_directory, f"{os.path.splitext(safe_file_name)[0]}.nfo")
-        create_nfo_file(nfo_file, video_title, video_url, description, publish_date, 1, index)
+        create_nfo_file(nfo_file, video_title, video_url, description, publish_date, season_number, index)
 
         # Download thumbnail
         thumbnail_url = video_info.get("thumbnail")
@@ -140,11 +169,25 @@ def download_playlist(playlist_id, reverse_order=False):
 
     logging.info(f"\nDownload complete! Videos saved in '{output_directory}'. Playlist index saved to '{csv_path}'.")
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python youtube_playlist_downloader.py <YouTube Playlist ID> [--reverse]")
-        sys.exit(1)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Download an entire YouTube playlist with Emby metadata.")
+    parser.add_argument("playlist_id", help="The YouTube playlist ID to download.")
+    parser.add_argument("--reverse", action="store_true", help="Download episodes in reverse order.")
+    parser.add_argument(
+        "--season-name",
+        help="Custom label for the season (e.g., 'Season 3', 'Miami'). Defaults to 'Season 01'."
+    )
+    return parser.parse_args()
 
-    playlist_id = sys.argv[1]
-    reverse_order = '--reverse' in sys.argv
-    download_playlist(playlist_id, reverse_order)
+
+if __name__ == "__main__":
+    cli_args = parse_args()
+    season_label = cli_args.season_name.strip() if cli_args.season_name else "Season 01"
+    inferred = infer_season_number_from_name(season_label)
+    season_number = inferred if inferred else 1
+    download_playlist(
+        cli_args.playlist_id,
+        reverse_order=cli_args.reverse,
+        season_name=season_label,
+        season_number=season_number
+    )
